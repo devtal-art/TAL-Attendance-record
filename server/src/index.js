@@ -21,7 +21,7 @@ if (process.env.TRUST_PROXY) {
   app.set('trust proxy', /^\d+$/.test(v) ? Number(v) : v === 'true' ? true : v);
 }
 
-const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map((s) => s.trim()).filter(Boolean);
+const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173').split(',').map((s) => s.trim().replace(/\/+$/, '')).filter(Boolean);
 
 app.use(helmet());                                              // security headers
 app.use(cors({ origin: allowedOrigins, credentials: true }));   // only the app's own origin(s), with cookies

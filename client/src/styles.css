@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light;   /* always the light look, whatever the OS / browser theme is */
   --bg: #f5f6fa; --panel: #fff; --text: #1d2433; --muted: #6a7488; --line: #e4e8f0; --hover: #f1f4fb;
   --accent: #2f5bea; --accent-ink: #fff;
   --present: #0b6b35; --present-bg: #d9f4e4;
@@ -10,16 +11,6 @@
   --off-bg: #eef0f5;
   --holiday: #5b2fb8; --holiday-bg: #ebe2ff;
   --g-emp: #2f5fcf; --g-month: #0b6b50; --g-att: #d4650a; --g-pay: #6a2fd0;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1218; --panel: #171b25; --text: #e6e9f2; --muted: #8c95aa; --line: #2a3040; --hover: #1f2535;
-    --accent: #6f90ff; --accent-ink: #0f1218;
-    --present: #6fe3a0; --present-bg: #12331f; --half: #ffd36b; --half-bg: #3a2d0b;
-    --paid: #9db8ff; --paid-bg: #1b2750; --unpaid: #ffab8c; --unpaid-bg: #3d2015;
-    --absent: #ff9aa8; --absent-bg: #40141c; --none: #8c95aa; --none-bg: #232837; --off-bg: #1d2230;
-    --holiday: #c3a9ff; --holiday-bg: #2b2150;
-  }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
