@@ -1,0 +1,199 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { api } from '../api.js';
+import { PageHead, Stepper } from '../components/Bits.jsx';
+import { useConfig } from '../config.jsx';
+import { STATUS, STATUS_KEYS, addDays, fmtMinutes, fmtNum, prettyDate, todayISO } from '../utils.js';
+
+const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '' };
+
+const toDraft = (rec) => rec
+  ? {
+      status: rec.status,
+      hours: rec.status === 'present' ? String(Math.floor(rec.totalMinutes / 60)) : '',
+      minutes: rec.status === 'present' ? String(rec.totalMinutes % 60) : '',
+      reason: rec.reason || '',
+      shortLeaveHours: rec.shortLeaveHours ? String(rec.shortLeaveHours) : '',
+    }
+  : EMPTY;
+
+const minutesOf = (d) => (Number(d.hours) || 0) * 60 + (Number(d.minutes) || 0);
+
+// Which reasons the dropdown offers, and whether it is enabled, for the current status/time.
+function reasonOptions(d, cfg, weekOff) {
+  if (d.status === 'on_leave') return cfg.leaveReasons;
+  // Working on a week off is all overtime: just a time, no leave reason.
+  if (d.status === 'present' && !weekOff && minutesOf(d) < cfg.fullDayMinutes) return cfg.presentReasons;
+  return null; // disabled
+}
+
+// After every change, clear whatever the new status/time no longer allows.
+function normalize(d, cfg, weekOff) {
+  if (d.status === '') return EMPTY;
+  const next = { ...d };
+  if (d.status !== 'present') { next.hours = ''; next.minutes = ''; }
+  const options = reasonOptions(next, cfg, weekOff);
+  if (!options || !options.includes(next.reason)) next.reason = '';
+  if (next.reason !== cfg.shortLeaveKey) next.shortLeaveHours = '';
+  return next;
+}
+
+function Row({ item, date, onSaved }) {
+  const { employee, weekOff } = item;
+  const cfg = useConfig();
+  const shift = cfg.shiftOf(employee.shift);
+  const [saved, setSaved] = useState(toDraft(item.record));
+  const [d, setD] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [balances, setBalances] = useState(item.balances);
+
+  // Leave left for a reason, giving back whatever THIS day already uses (it is being re-saved).
+  const leftFor = (r) => {
+    if (!balances[r]) return Infinity; // not quota based (Holiday, Unpaid Leave, Relaxation)
+    const own = saved.reason !== r ? 0 : cfg.isHourly(r) ? Number(saved.shortLeaveHours) || 0 : saved.status === 'on_leave' ? 1 : 0.5;
+    return balances[r].left + own;
+  };
+
+  const dirty = JSON.stringify(d) !== JSON.stringify(saved);
+  const change = (patch) => { setError(''); setD(normalize({ ...d, ...patch }, cfg, weekOff)); };
+  const options = reasonOptions(d, cfg, weekOff);
+  // Overtime: everything on a week off, otherwise whatever is beyond a full day.
+  const overtime = d.status === 'present' ? (weekOff ? minutesOf(d) : Math.max(0, minutesOf(d) - cfg.fullDayMinutes)) : 0;
+
+  const save = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const { record: rec, balances: fresh } = await api.put('/attendance/daily', {
+        employee: employee._id, date, status: d.status,
+        totalMinutes: d.status === 'present' ? minutesOf(d) : 0,
+        reason: d.reason || null,
+        shortLeaveHours: d.shortLeaveHours ? Number(d.shortLeaveHours) : null,
+      });
+      const next = toDraft(rec);
+      setSaved(next);
+      setD(next);
+      setBalances(fresh);
+      onSaved(employee._id, rec);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <tr className={error ? 'has-error' : ''}>
+        <td className="mono">{employee.employeeId || '—'}</td>
+        <td><div className="strong">{employee.name}</div><div className="muted small">{shift.label} · {shift.days}</div></td>
+        <td>
+          <select className={`status-select ${d.status ? STATUS[d.status].cls : weekOff ? 'off' : 'none'}`} value={d.status} onChange={(e) => change({ status: e.target.value })}>
+            <option value="">{weekOff ? 'Week Off' : 'Not marked'}</option>
+            {STATUS_KEYS.map((k) => <option key={k} value={k}>{STATUS[k].label}</option>)}
+          </select>
+        </td>
+        <td>
+          <div className="time-cell">
+            <input type="number" min="0" max="24" placeholder="hh" disabled={d.status !== 'present'} value={d.hours} onChange={(e) => change({ hours: e.target.value })} />
+            <span>h</span>
+            <input type="number" min="0" max="59" placeholder="mm" disabled={d.status !== 'present'} value={d.minutes} onChange={(e) => change({ minutes: e.target.value })} />
+            <span>m</span>
+            {overtime > 0 && <span className="chip paid">Overtime {fmtMinutes(overtime)}</span>}
+          </div>
+        </td>
+        <td>
+          <div className="reason-cell">
+            <select disabled={!options} value={d.reason} onChange={(e) => change({ reason: e.target.value })}>
+              <option value="">{options ? 'Select reason' : '—'}</option>
+              {options?.map((r) => (
+                <option key={r} value={r} disabled={leftFor(r) <= 0 && d.reason !== r}>
+                  {cfg.reasonLabel(r)}{balances[r] && ` (${fmtNum(leftFor(r))} ${cfg.isHourly(r) ? 'h' : 'd'} left)`}
+                </option>
+              ))}
+            </select>
+            {d.reason === cfg.shortLeaveKey && (
+              <select value={d.shortLeaveHours} onChange={(e) => change({ shortLeaveHours: e.target.value })}>
+                <option value="">Hours</option>
+                {cfg.shortLeaveHours.map((h) => <option key={h} value={h} disabled={h > leftFor(cfg.shortLeaveKey)}>{h} hour{h > 1 ? 's' : ''}</option>)}
+              </select>
+            )}
+            {d.status === 'present' && d.reason && d.reason !== cfg.shortLeaveKey && <span className="chip half">Half day</span>}
+          </div>
+        </td>
+        <td className="save-cell"><div>
+          <button className="primary" disabled={!dirty || busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
+          <span className={`save-state ${dirty ? 'unsaved' : item.record || saved.status ? 'saved' : ''}`}>{dirty ? 'Unsaved' : saved.status ? 'Saved' : ''}</span>
+        </div></td>
+      </tr>
+      {error && <tr className="err-row"><td colSpan="6">{error}</td></tr>}
+    </>
+  );
+}
+
+export default function Daily() {
+  const [params] = useSearchParams();
+  const [date, setDate] = useState(/^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : todayISO());
+  const [data, setData] = useState(null);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+
+  const load = useCallback(() => {
+    setError('');
+    api.get(`/attendance/daily?date=${date}`).then(setData).catch((e) => setError(e.message));
+  }, [date]);
+  useEffect(() => { setData(null); load(); }, [load]);
+
+  const onSaved = (empId, record) =>
+    setData((x) => ({ ...x, items: x.items.map((i) => (i.employee._id === empId ? { ...i, record } : i)) }));
+
+  const counts = useMemo(() => {
+    const c = { present: 0, absent: 0, on_leave: 0, week_off: 0, none: 0 };
+    data?.items.forEach((i) => (i.record ? (c[i.record.status] += 1) : i.weekOff ? (c.week_off += 1) : (c.none += 1)));
+    return c;
+  }, [data]);
+
+  const items = data?.items.filter((i) => {
+    const q = search.toLowerCase();
+    return !q || i.employee.name.toLowerCase().includes(q) || (i.employee.employeeId || '').toLowerCase().includes(q);
+  });
+
+  return (
+    <>
+      <PageHead title="Daily Attendance" sub="Mark each employee for the selected day and press Save. Saved days flow into the monthly record." />
+
+      <div className="toolbar">
+        <Stepper label="day" onPrev={() => setDate(addDays(date, -1))} onNext={() => setDate(addDays(date, 1))} onToday={() => setDate(todayISO())}>
+          <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
+        </Stepper>
+        <input className="search" placeholder="Search name or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+
+      <div className="day-title">
+        {prettyDate(date)}
+        {data?.holiday && <span className="chip off">{data.holiday}</span>}
+      </div>
+
+      <div className="chips">
+        {STATUS_KEYS.map((k) => <span key={k} className={`chip ${STATUS[k].cls}`}>{STATUS[k].label}: <b>{counts[k]}</b></span>)}
+        <span className="chip off">Week Off: <b>{counts.week_off}</b></span>
+        <span className="chip none">Not marked: <b>{counts.none}</b></span>
+      </div>
+
+      {error && <div className="error">{error}</div>}
+      <div className="card table-card">
+        <table className="table">
+          <thead>
+            <tr><th>ID</th><th>Employee</th><th>Status</th><th>Total time</th><th>Reason</th><th /></tr>
+          </thead>
+          <tbody>
+            {!data && <tr><td colSpan="6" className="muted pad">Loading…</td></tr>}
+            {items?.map((i) => <Row key={`${date}-${i.employee._id}`} item={i} date={date} onSaved={onSaved} />)}
+            {items?.length === 0 && <tr><td colSpan="6" className="muted pad">No employees found</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
