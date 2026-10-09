@@ -38,6 +38,7 @@ router.get('/employees', wrap(async (req, res) => {
       return {
         employee: publicEmployee(e),
         shift: e.shift,
+        department: e.department || undefined,
         summary: { daysWorked: summary.daysWorked, payableDays: summary.payableDays, overtimeMinutes: summary.overtimeMinutes },
         leavesTaken: recs.reduce((sum, r) => sum + r.leaveDays, 0), // full + half-day leaves (not hourly short leave)
       };

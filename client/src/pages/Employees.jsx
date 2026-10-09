@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
-import { PageHead, Stepper } from '../components/Bits.jsx';
+import { GroupFilters, PageHead, Stepper } from '../components/Bits.jsx';
 import { useConfig } from '../config.jsx';
 import { LEGEND, dayTag } from '../components/dayTag.js';
-import { WEEKDAY_LETTER, addMonths, fmtCompact, fmtHM, fmtNum, prettyMonth, thisMonth, todayISO } from '../utils.js';
+import { WEEKDAY_LETTER, addMonths, fmtCompact, fmtHM, fmtNum, matchesGroup, prettyMonth, thisMonth, todayISO } from '../utils.js';
 
 // One employee's record for the month, as a day-wise register.
 function Detail({ data }) {
@@ -87,6 +87,8 @@ export default function Employees() {
   const [open, setOpen] = useState(null);       // id of the employee whose accordion is open
   const [details, setDetails] = useState({});   // `${id}|${month}` -> loaded detail (or { error })
   const [search, setSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
+  const [shiftFilter, setShiftFilter] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -109,9 +111,10 @@ export default function Employees() {
   // Switching month keeps the same employee open and loads their new month.
   useEffect(() => { if (open) load(open); }, [month]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const shown = rows?.filter(({ employee: e }) => {
+  const shown = rows?.filter(({ employee: e, shift, department }) => {
     const q = search.toLowerCase();
-    return !q || e.name.toLowerCase().includes(q) || (e.employeeId || '').toLowerCase().includes(q);
+    return (!q || e.name.toLowerCase().includes(q) || (e.employeeId || '').toLowerCase().includes(q))
+      && matchesGroup(department, shift, deptFilter, shiftFilter, cfg.shifts[0]?.key);
   });
 
   return (
@@ -122,6 +125,8 @@ export default function Employees() {
           <span className="stepper-label">{prettyMonth(month)}</span>
         </Stepper>
         <input className="search" placeholder="Search name or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <GroupFilters shifts={cfg.shifts} extraDepartments={rows?.map((r) => r.department)}
+          dept={deptFilter} onDept={setDeptFilter} shift={shiftFilter} onShift={setShiftFilter} />
       </div>
 
       {error && <div className="error">{error}</div>}

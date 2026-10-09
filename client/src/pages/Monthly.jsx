@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
-import { PageHead, Stepper } from '../components/Bits.jsx';
+import { GroupFilters, PageHead, Stepper } from '../components/Bits.jsx';
 import { useConfig } from '../config.jsx';
 import { LEGEND, dayTag } from '../components/dayTag.js';
-import { WEEKDAY_LETTER, addMonths, downloadCSV, fmtMinutes, fmtNum, prettyMonth, thisMonth, todayISO } from '../utils.js';
+import { WEEKDAY_LETTER, addMonths, downloadCSV, fmtMinutes, fmtNum, matchesGroup, prettyMonth, thisMonth, todayISO } from '../utils.js';
 
 const Icon = ({ children }) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
@@ -133,6 +133,8 @@ export default function Monthly() {
   const [month, setMonth] = useState(thisMonth());
   const [tab, setTab] = useState('summary');
   const [data, setData] = useState(null);
+  const [deptFilter, setDeptFilter] = useState('');
+  const [shiftFilter, setShiftFilter] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -141,8 +143,11 @@ export default function Monthly() {
     api.get(`/attendance/monthly?month=${month}`).then(setData).catch((e) => setError(e.message));
   }, [month]);
 
+  // Department / shift filters apply to both tabs (and the CSV export).
+  const view = data && { ...data, rows: data.rows.filter((r) => matchesGroup(r.employee.department, r.shift, deptFilter, shiftFilter, cfg.shifts[0]?.key)) };
+
   const exportCSV = () => {
-    const { rows } = data;
+    const { rows } = view;
     downloadCSV(`attendance-${month}.csv`, [
       ['Employee ID', 'Employee Name', 'Shift', 'Total Days', 'Working Days', 'Week Offs', 'Days Worked', 'Paid Leaves', 'Unpaid Leaves', 'Holidays', 'Overtime (h:mm)', 'Payable Days', 'Deduction Days'],
       ...rows.map(({ employee: e, shift, month: mo, summary: s }) => [e.employeeId, e.name, cfg.shiftOf(shift).label, mo.totalDays, mo.workingDays, mo.weekOffs, s.daysWorked, s.paidLeaves, s.unpaidLeaves, mo.holidays, `${Math.floor(s.overtimeMinutes / 60)}:${String(s.overtimeMinutes % 60).padStart(2, '0')}`, s.payableDays, s.deductionDays]),
@@ -158,6 +163,8 @@ export default function Monthly() {
         <Stepper label="month" onPrev={() => setMonth(addMonths(month, -1))} onNext={() => setMonth(addMonths(month, 1))} onToday={() => setMonth(thisMonth())}>
           <span className="stepper-label">{prettyMonth(month)}</span>
         </Stepper>
+        <GroupFilters shifts={cfg.shifts} extraDepartments={data?.rows.map((r) => r.employee.department)}
+          dept={deptFilter} onDept={setDeptFilter} shift={shiftFilter} onShift={setShiftFilter} />
         <div className="tabs">
           <button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Salary summary</button>
           <button className={tab === 'register' ? 'on' : ''} onClick={() => setTab('register')}>Day-wise register</button>
@@ -165,7 +172,8 @@ export default function Monthly() {
       </div>
       {error && <div className="error">{error}</div>}
       {!data && !error && <div className="muted pad">Loading…</div>}
-      {data && (tab === 'summary' ? <Summary data={data} /> : <Register data={data} />)}
+      {view && view.rows.length === 0 && <div className="muted pad">No employees found</div>}
+      {view && view.rows.length > 0 && (tab === 'summary' ? <Summary data={view} /> : <Register data={view} />)}
     </>
   );
 }

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { PageHead, Stepper } from '../components/Bits.jsx';
+import { GroupFilters, PageHead, Stepper } from '../components/Bits.jsx';
 import { useConfig } from '../config.jsx';
-import { STATUS, STATUS_KEYS, addDays, fmtMinutes, fmtNum, prettyDate, todayISO } from '../utils.js';
+import { STATUS, STATUS_KEYS, addDays, fmtMinutes, fmtNum, matchesGroup, prettyDate, todayISO } from '../utils.js';
 
 const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '' };
 
@@ -133,10 +133,13 @@ function Row({ item, date, onSaved }) {
 }
 
 export default function Daily() {
+  const cfg = useConfig();
   const [params] = useSearchParams();
   const [date, setDate] = useState(/^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : todayISO());
   const [data, setData] = useState(null);
   const [search, setSearch] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
+  const [shiftFilter, setShiftFilter] = useState('');
   const [error, setError] = useState('');
 
   const load = useCallback(() => {
@@ -156,7 +159,8 @@ export default function Daily() {
 
   const items = data?.items.filter((i) => {
     const q = search.toLowerCase();
-    return !q || i.employee.name.toLowerCase().includes(q) || (i.employee.employeeId || '').toLowerCase().includes(q);
+    return (!q || i.employee.name.toLowerCase().includes(q) || (i.employee.employeeId || '').toLowerCase().includes(q))
+      && matchesGroup(i.employee.department, i.employee.shift, deptFilter, shiftFilter, cfg.shifts[0]?.key);
   });
 
   return (
@@ -168,6 +172,8 @@ export default function Daily() {
           <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} />
         </Stepper>
         <input className="search" placeholder="Search name or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <GroupFilters shifts={cfg.shifts} extraDepartments={data?.items.map((i) => i.employee.department)}
+          dept={deptFilter} onDept={setDeptFilter} shift={shiftFilter} onShift={setShiftFilter} />
       </div>
 
       <div className="day-title">

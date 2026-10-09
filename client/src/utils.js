@@ -45,3 +45,11 @@ export function downloadCSV(filename, rows) {
   a.download = filename;
   a.click();
 }
+
+export const DEPARTMENTS = ['Admin', 'Management', 'Development', 'Design', 'Chat Support', 'HR', 'Accounts', 'House Keeping'];
+export const NO_DEPARTMENT = '__none__';
+
+/** Does an employee pass the department / shift filters ('' = all)? */
+export const matchesGroup = (department, shift, deptFilter, shiftFilter, defaultShift) =>
+  (!deptFilter || (deptFilter === NO_DEPARTMENT ? !department : department === deptFilter)) &&
+  (!shiftFilter || (shift || defaultShift) === shiftFilter);

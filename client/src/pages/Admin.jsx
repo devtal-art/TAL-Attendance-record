@@ -2,16 +2,29 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { PageHead } from '../components/Bits.jsx';
 import { useConfig } from '../config.jsx';
-import { fmtNum } from '../utils.js';
+import { DEPARTMENTS, fmtNum } from '../utils.js';
 
-const EMPTY = { name: '', employeeId: '', designation: '', shift: 'shift1' };
+
+const OTHER = '__other__';
+
+const EMPTY = { name: '', employeeId: '', department: '', shift: 'shift1' };
 
 function EmployeeForm({ initial, onCancel, onSaved }) {
   const cfg = useConfig();
   const editing = !!initial._id;
   const [f, setF] = useState({ ...EMPTY, ...initial });
+  // A saved department outside the preset list is shown as "Other" with its name in the text box.
+  const [deptChoice, setDeptChoice] = useState(
+    !f.department ? '' : DEPARTMENTS.includes(f.department) ? f.department : OTHER
+  );
   const [error, setError] = useState('');
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const pickDept = (e) => {
+    const v = e.target.value;
+    setDeptChoice(v);
+    setF({ ...f, department: v === OTHER ? (DEPARTMENTS.includes(f.department) ? '' : f.department || '') : v });
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -31,7 +44,16 @@ function EmployeeForm({ initial, onCancel, onSaved }) {
         <div className="grid2">
           <label>Name<input value={f.name} onChange={set('name')} required autoFocus /></label>
           <label>Employee ID<input value={f.employeeId || ''} onChange={set('employeeId')} placeholder="Optional" /></label>
-          <label>Designation<input value={f.designation || ''} onChange={set('designation')} /></label>
+          <label>Department
+            <select value={deptChoice} onChange={pickDept}>
+              <option value="">Select department</option>
+              {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+              <option value={OTHER}>Other</option>
+            </select>
+          </label>
+          {deptChoice === OTHER && (
+            <label>Department name<input value={f.department || ''} onChange={set('department')} placeholder="Type department name" required /></label>
+          )}
           <label>Shift
             <select value={f.shift || 'shift1'} onChange={set('shift')}>
               {cfg.shifts.map((s) => <option key={s.key} value={s.key}>{s.label} · {s.days}</option>)}
@@ -124,11 +146,6 @@ export default function Admin() {
     try { await api.put(`/employees/${u._id}`, { active: !u.active }); load(); } catch (e) { setError(e.message); }
   };
 
-  const changeShift = async (u, shift) => {
-    setError('');
-    try { await api.put(`/employees/${u._id}`, { shift }); load(); } catch (e) { setError(e.message); }
-  };
-
   const shown = list?.filter((u) => {
     const q = search.toLowerCase();
     return !q || u.name.toLowerCase().includes(q) || (u.employeeId || '').toLowerCase().includes(q);
@@ -148,7 +165,7 @@ export default function Admin() {
         <table className="table">
           <thead>
             <tr>
-              <th>ID</th><th>Name</th><th>Designation</th><th>Shift</th>
+              <th>ID</th><th>Name</th><th>Department</th><th>Shift</th>
               {cfg.quotaReasons.map((r) => <th key={r} className="num">{cfg.reasonLabel(r)}</th>)}
               <th>Status</th><th />
             </tr>
@@ -159,12 +176,8 @@ export default function Admin() {
               <tr key={u._id} className={u.active ? '' : 'inactive'}>
                 <td className="mono">{u.employeeId || '—'}</td>
                 <td className="strong">{u.name}</td>
-                <td>{u.designation || '—'}</td>
-                <td>
-                  <select className="shift-select" value={u.shift || 'shift1'} onChange={(e) => changeShift(u, e.target.value)}>
-                    {cfg.shifts.map((s) => <option key={s.key} value={s.key}>{s.label} · {s.days}</option>)}
-                  </select>
-                </td>
+                <td>{u.department || '—'}</td>
+                <td>{(() => { const s = cfg.shifts.find((x) => x.key === (u.shift || 'shift1')); return s ? `${s.label} · ${s.days}` : '—'; })()}</td>
                 {cfg.quotaReasons.map((r) => {
                   const b = u.balances[r];
                   return <td key={r} className={`num ${b.left <= 0 ? 'neg' : ''}`}>{fmtNum(b.left)} / {fmtNum(b.allowed)}</td>;

@@ -30,7 +30,7 @@ router.get('/', wrap(async (_req, res) => {
 }));
 
 router.post('/', wrap(async (req, res) => {
-  const { name, employeeId, designation, shift } = req.body || {};
+  const { name, employeeId, designation, department, shift } = req.body || {};
   if (!clean(name)) return res.status(400).json({ message: 'Name is required' });
   if (shift !== undefined && !isValidShift(shift)) return res.status(400).json({ message: 'Unknown shift' });
 
@@ -46,6 +46,7 @@ router.post('/', wrap(async (req, res) => {
   };
   if (cleanCode(employeeId)) doc.employeeCode = cleanCode(employeeId);
   if (clean(designation)) doc.designation = clean(designation);
+  if (clean(department)) doc.department = clean(department);
 
   const { insertedId } = await C.employees.insertOne(doc); // a duplicate employee ID is rejected by the unique index (409)
   res.status(201).json(await loadOne(insertedId));
@@ -55,7 +56,7 @@ router.put('/:id', wrap(async (req, res) => {
   const id = oid(req.params.id);
   if (!id || !(await C.employees.findOne({ _id: id }, { projection: { _id: 1 } }))) return res.status(404).json({ message: 'Employee not found' });
 
-  const { name, employeeId, designation, active, shift } = req.body || {};
+  const { name, employeeId, designation, department, active, shift } = req.body || {};
   if (shift !== undefined && !isValidShift(shift)) return res.status(400).json({ message: 'Unknown shift' });
 
   const $set = { updatedAt: new Date() };
@@ -63,6 +64,7 @@ router.put('/:id', wrap(async (req, res) => {
   if (name !== undefined && clean(name)) $set.name = clean(name);
   if (employeeId !== undefined) { if (cleanCode(employeeId)) $set.employeeCode = cleanCode(employeeId); else $unset.employeeCode = ''; }
   if (designation !== undefined) { if (clean(designation)) $set.designation = clean(designation); else $unset.designation = ''; }
+  if (department !== undefined) { if (clean(department)) $set.department = clean(department); else $unset.department = ''; }
   if (active !== undefined) $set.active = !!active;
   if (shift !== undefined) $set.shift = shift;
 

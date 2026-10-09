@@ -5,6 +5,7 @@ export const employeeJson = (d) => ({
   name: d.name,
   employeeId: d.employeeCode || undefined,
   designation: d.designation || undefined,
+  department: d.department || undefined,
   active: d.active !== false,
   shift: d.shift,
 });
