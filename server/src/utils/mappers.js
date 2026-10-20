@@ -8,6 +8,7 @@ export const employeeJson = (d) => ({
   department: d.department || undefined,
   active: d.active !== false,
   shift: d.shift,
+  eightHourPolicy: d.eightHourPolicy !== false, // missing = Yes (the normal 8-hour rules)
 });
 
 export const recordJson = (d) => ({
@@ -19,6 +20,7 @@ export const recordJson = (d) => ({
   reason: d.reason ?? null,
   shortLeaveHours: d.shortLeaveHours ?? null,
   leaveDays: Number(d.leaveDays ?? 0),
+  half: d.half ?? null,
 });
 
 export const holidayJson = (d) => ({ _id: String(d._id), date: d.date, name: d.name });

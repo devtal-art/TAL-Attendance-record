@@ -45,7 +45,7 @@ Other server commands: `npm run seed` (fill empty collections), `npm run set-pas
 **2. Frontend** (any static host: Vercel, Netlify, Cloudflare Pages...). Root directory `client`, build `npm run build`, publish `dist`. Environment variable (set **before** the build, it is baked into the files):
 - `VITE_API_URL` = the backend's URL, e.g. `https://api.example.com` (no trailing slash).
 
-The site is a single-page app: configure the host to serve `index.html` for every path (a rewrite of `/*` to `/index.html`), otherwise opening `/employees` or `/login` directly gives a 404.
+The site is a single-page app that uses hash URLs (`/#/employees`, `/#/login`), so any static host works with no rewrite rules and refreshing a page never gives a 404.
 
 **3. Check:** open the frontend URL, you should land on Employees; sign in under Attendance Management. Always use **HTTPS** (the password travels in the sign-in request).
 

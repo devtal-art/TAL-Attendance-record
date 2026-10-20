@@ -13,7 +13,7 @@ const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const publicEmployee = (e) => ({ _id: String(e._id), name: e.name, employeeId: e.employeeCode || undefined });
 const publicRecord = (r) => ({
-  status: r.status, reason: r.reason, leaveDays: r.leaveDays, shortLeaveHours: r.shortLeaveHours, totalMinutes: r.totalMinutes,
+  status: r.status, reason: r.reason, leaveDays: r.leaveDays, shortLeaveHours: r.shortLeaveHours, totalMinutes: r.totalMinutes, half: r.half,
 });
 
 // All active employees with the few numbers shown in the collapsed accordion row.
@@ -34,7 +34,7 @@ router.get('/employees', wrap(async (req, res) => {
   res.json({
     rows: employees.map((e) => {
       const recs = byEmp.get(String(e._id)) || [];
-      const summary = summarize(recs, getMonthMeta(month, holidays, weekOffDays(e.shift)));
+      const summary = summarize(recs, getMonthMeta(month, holidays, weekOffDays(e.shift)), { eightHourPolicy: e.eightHourPolicy !== false });
       return {
         employee: publicEmployee(e),
         shift: e.shift,
@@ -61,7 +61,7 @@ router.get('/employees/:id/register', wrap(async (req, res) => {
   const byDate = new Map(rows.map((r) => [r.date, recordJson(r)]));
   const own = getMonthMeta(month, holidays, weekOffDays(employee.shift));
   res.json({
-    employee: { ...publicEmployee(employee), shift: employee.shift },
+    employee: { ...publicEmployee(employee), shift: employee.shift, eightHourPolicy: employee.eightHourPolicy !== false },
     days: own.days.map((d) => ({
       date: d.date, day: d.day, dow: d.dow,
       off: d.off ? { type: d.offType, name: d.off } : null,

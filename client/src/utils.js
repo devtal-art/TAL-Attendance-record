@@ -33,6 +33,7 @@ export const STATUS = {
   present: { label: 'Present', cls: 'present' },
   absent: { label: 'Absent', cls: 'absent' },
   on_leave: { label: 'On Leave', cls: 'paid' },
+  p_available: { label: 'P Available', cls: 'unpaid' },
 };
 export const STATUS_KEYS = Object.keys(STATUS);
 

@@ -5,15 +5,18 @@ import { GroupFilters, PageHead, Stepper } from '../components/Bits.jsx';
 import { useConfig } from '../config.jsx';
 import { STATUS, STATUS_KEYS, addDays, fmtMinutes, fmtNum, matchesGroup, prettyDate, todayISO } from '../utils.js';
 
-const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '' };
+const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '', half: '' };
+
+const hasTime = (status) => status === 'present' || status === 'p_available';
 
 const toDraft = (rec) => rec
   ? {
       status: rec.status,
-      hours: rec.status === 'present' ? String(Math.floor(rec.totalMinutes / 60)) : '',
-      minutes: rec.status === 'present' ? String(rec.totalMinutes % 60) : '',
+      hours: hasTime(rec.status) ? String(Math.floor(rec.totalMinutes / 60)) : '',
+      minutes: hasTime(rec.status) ? String(rec.totalMinutes % 60) : '',
       reason: rec.reason || '',
       shortLeaveHours: rec.shortLeaveHours ? String(rec.shortLeaveHours) : '',
+      half: rec.half || '',
     }
   : EMPTY;
 
@@ -31,15 +34,18 @@ function reasonOptions(d, cfg, weekOff) {
 function normalize(d, cfg, weekOff) {
   if (d.status === '') return EMPTY;
   const next = { ...d };
-  if (d.status !== 'present') { next.hours = ''; next.minutes = ''; }
+  if (!hasTime(d.status)) { next.hours = ''; next.minutes = ''; }
   const options = reasonOptions(next, cfg, weekOff);
   if (!options || !options.includes(next.reason)) next.reason = '';
   if (next.reason !== cfg.shortLeaveKey) next.shortLeaveHours = '';
+  if (next.status !== 'present' || !next.reason) next.half = ''; // only a leave taken with Present has a half
   return next;
 }
 
 function Row({ item, date, onSaved }) {
-  const { employee, weekOff } = item;
+  const { employee, weekOff: isWeekOff } = item;
+  const noPolicy = employee.eightHourPolicy === false; // no 8-hour rules: just a time, no leave reason
+  const weekOff = isWeekOff || noPolicy; // drives the reason rules; the real week off is still isWeekOff
   const cfg = useConfig();
   const shift = cfg.shiftOf(employee.shift);
   const [saved, setSaved] = useState(toDraft(item.record));
@@ -59,7 +65,7 @@ function Row({ item, date, onSaved }) {
   const change = (patch) => { setError(''); setD(normalize({ ...d, ...patch }, cfg, weekOff)); };
   const options = reasonOptions(d, cfg, weekOff);
   // Overtime: everything on a week off, otherwise whatever is beyond a full day.
-  const overtime = d.status === 'present' ? (weekOff ? minutesOf(d) : Math.max(0, minutesOf(d) - cfg.fullDayMinutes)) : 0;
+  const overtime = d.status === 'present' ? (isWeekOff ? minutesOf(d) : noPolicy ? 0 : Math.max(0, minutesOf(d) - cfg.fullDayMinutes)) : 0;
 
   const save = async () => {
     setBusy(true);
@@ -67,9 +73,10 @@ function Row({ item, date, onSaved }) {
     try {
       const { record: rec, balances: fresh } = await api.put('/attendance/daily', {
         employee: employee._id, date, status: d.status,
-        totalMinutes: d.status === 'present' ? minutesOf(d) : 0,
+        totalMinutes: hasTime(d.status) ? minutesOf(d) : 0,
         reason: d.reason || null,
         shortLeaveHours: d.shortLeaveHours ? Number(d.shortLeaveHours) : null,
+        half: d.half || null,
       });
       const next = toDraft(rec);
       setSaved(next);
@@ -89,16 +96,16 @@ function Row({ item, date, onSaved }) {
         <td className="mono">{employee.employeeId || '—'}</td>
         <td><div className="strong">{employee.name}</div><div className="muted small">{shift.label} · {shift.days}</div></td>
         <td>
-          <select className={`status-select ${d.status ? STATUS[d.status].cls : weekOff ? 'off' : 'none'}`} value={d.status} onChange={(e) => change({ status: e.target.value })}>
-            <option value="">{weekOff ? 'Week Off' : 'Not marked'}</option>
+          <select className={`status-select ${d.status ? STATUS[d.status].cls : isWeekOff ? 'off' : 'none'}`} value={d.status} onChange={(e) => change({ status: e.target.value })}>
+            <option value="">{isWeekOff ? 'Week Off' : 'Not marked'}</option>
             {STATUS_KEYS.map((k) => <option key={k} value={k}>{STATUS[k].label}</option>)}
           </select>
         </td>
         <td>
           <div className="time-cell">
-            <input type="number" min="0" max="24" placeholder="hh" disabled={d.status !== 'present'} value={d.hours} onChange={(e) => change({ hours: e.target.value })} />
+            <input type="number" min="0" max="24" placeholder="hh" disabled={!hasTime(d.status)} value={d.hours} onChange={(e) => change({ hours: e.target.value })} />
             <span>h</span>
-            <input type="number" min="0" max="59" placeholder="mm" disabled={d.status !== 'present'} value={d.minutes} onChange={(e) => change({ minutes: e.target.value })} />
+            <input type="number" min="0" max="59" placeholder="mm" disabled={!hasTime(d.status)} value={d.minutes} onChange={(e) => change({ minutes: e.target.value })} />
             <span>m</span>
             {overtime > 0 && <span className="chip paid">Overtime {fmtMinutes(overtime)}</span>}
           </div>
@@ -117,6 +124,13 @@ function Row({ item, date, onSaved }) {
               <select value={d.shortLeaveHours} onChange={(e) => change({ shortLeaveHours: e.target.value })}>
                 <option value="">Hours</option>
                 {cfg.shortLeaveHours.map((h) => <option key={h} value={h} disabled={h > leftFor(cfg.shortLeaveKey)}>{h} hour{h > 1 ? 's' : ''}</option>)}
+              </select>
+            )}
+            {d.status === 'present' && d.reason && (
+              <select value={d.half} onChange={(e) => change({ half: e.target.value })}>
+                <option value="">Which half?</option>
+                <option value="first">First half</option>
+                <option value="second">Second half</option>
               </select>
             )}
             {d.status === 'present' && d.reason && d.reason !== cfg.shortLeaveKey && <span className="chip half">Half day</span>}
@@ -152,7 +166,7 @@ export default function Daily() {
     setData((x) => ({ ...x, items: x.items.map((i) => (i.employee._id === empId ? { ...i, record } : i)) }));
 
   const counts = useMemo(() => {
-    const c = { present: 0, absent: 0, on_leave: 0, week_off: 0, none: 0 };
+    const c = { present: 0, absent: 0, on_leave: 0, p_available: 0, week_off: 0, none: 0 };
     data?.items.forEach((i) => (i.record ? (c[i.record.status] += 1) : i.weekOff ? (c.week_off += 1) : (c.none += 1)));
     return c;
   }, [data]);

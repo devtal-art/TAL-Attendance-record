@@ -30,7 +30,7 @@ router.get('/', wrap(async (_req, res) => {
 }));
 
 router.post('/', wrap(async (req, res) => {
-  const { name, employeeId, designation, department, shift } = req.body || {};
+  const { name, employeeId, designation, department, shift, eightHourPolicy } = req.body || {};
   if (!clean(name)) return res.status(400).json({ message: 'Name is required' });
   if (shift !== undefined && !isValidShift(shift)) return res.status(400).json({ message: 'Unknown shift' });
 
@@ -39,6 +39,7 @@ router.post('/', wrap(async (req, res) => {
     name: clean(name),
     active: true,
     shift: shift ?? defaultShift(),
+    eightHourPolicy: eightHourPolicy !== false,
     // New employees start with the default allowance of every tracked leave.
     leaveAllowance: Object.fromEntries(quotaReasons().map((r) => [r, defaultAllowance(r)])),
     createdAt: now,
@@ -56,7 +57,7 @@ router.put('/:id', wrap(async (req, res) => {
   const id = oid(req.params.id);
   if (!id || !(await C.employees.findOne({ _id: id }, { projection: { _id: 1 } }))) return res.status(404).json({ message: 'Employee not found' });
 
-  const { name, employeeId, designation, department, active, shift } = req.body || {};
+  const { name, employeeId, designation, department, active, shift, eightHourPolicy } = req.body || {};
   if (shift !== undefined && !isValidShift(shift)) return res.status(400).json({ message: 'Unknown shift' });
 
   const $set = { updatedAt: new Date() };
@@ -67,6 +68,7 @@ router.put('/:id', wrap(async (req, res) => {
   if (department !== undefined) { if (clean(department)) $set.department = clean(department); else $unset.department = ''; }
   if (active !== undefined) $set.active = !!active;
   if (shift !== undefined) $set.shift = shift;
+  if (eightHourPolicy !== undefined) $set.eightHourPolicy = eightHourPolicy !== false;
 
   await C.employees.updateOne({ _id: id }, Object.keys($unset).length ? { $set, $unset } : { $set });
   res.json(await loadOne(id));

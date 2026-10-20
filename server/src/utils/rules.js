@@ -24,6 +24,9 @@ export const labelOf = (key) => typeOf(key)?.label || key;
 export const unitOf = (key) => (typeOf(key)?.unit === 'hours' ? 'hour(s)' : 'day(s)');
 export const defaultAllowance = (key) => typeOf(key)?.defaultAllowance ?? 0;
 
+const RELAXATION_KEY = 'relaxation';
+const HALVES = ['first', 'second']; // which half of the day a leave taken with Present covers
+
 const fail = (error) => ({ error });
 
 /**
@@ -32,12 +35,21 @@ const fail = (error) => ({ error });
  *   leaveDays = how much of the day is deducted from the employee's leave record (0, 0.5 or 1).
  * @param {{weekOff?: boolean}} [opts]  weekOff: this date is the employee's week off (their shift's off day).
  *   Working on a week off is all overtime, so Present needs only a time - no 8-hour minimum, no leave reason.
+ *   eightHourPolicy: false (employee setting) drops the 8-hour rules for Present the same way.
  */
-export function buildRecord({ status, totalMinutes, reason, shortLeaveHours }, { weekOff = false } = {}) {
+export function buildRecord({ status, totalMinutes, reason, shortLeaveHours, half }, { weekOff = false, eightHourPolicy = true } = {}) {
   const { fullDayMinutes, halfDayMinutes, maxMinutes, shortLeaveHours: allowedHours } = getConfig().settings;
-  const base = { status, totalMinutes: 0, reason: null, shortLeaveHours: null, leaveDays: 0 };
+  const base = { status, totalMinutes: 0, reason: null, shortLeaveHours: null, leaveDays: 0, half: null };
 
   if (status === 'absent') return { value: base };
+
+  // Partially available: no reason, no minimum or full-day rule on the time (optional); counted as an unpaid day (see calc.js).
+  if (status === 'p_available') {
+    const mins = totalMinutes === undefined || totalMinutes === null || totalMinutes === '' ? 0 : Number(totalMinutes);
+    if (!Number.isInteger(mins) || mins < 0) return fail('Enter a valid total time.');
+    if (mins > maxMinutes) return fail(`Total time can't be more than ${hours(maxMinutes)}.`);
+    return { value: { ...base, totalMinutes: mins } };
+  }
 
   if (status === 'on_leave') {
     if (!leaveReasons().includes(reason)) return fail('Select a reason for the leave.');
@@ -49,7 +61,8 @@ export function buildRecord({ status, totalMinutes, reason, shortLeaveHours }, {
     if (!Number.isInteger(mins) || mins <= 0) return fail('Enter the total time worked.');
     if (mins > maxMinutes) return fail(`Total time can't be more than ${hours(maxMinutes)}.`);
 
-    if (weekOff || mins >= fullDayMinutes) return { value: { ...base, totalMinutes: mins } };
+    // Employee without the 8-hour policy: whatever time is entered is saved, no leave reason needed.
+    if (!eightHourPolicy || weekOff || mins >= fullDayMinutes) return { value: { ...base, totalMinutes: mins } };
 
     // Less than a full day: a leave reason is mandatory.
     const short = typeOf(shortLeaveKey());
@@ -57,17 +70,18 @@ export function buildRecord({ status, totalMinutes, reason, shortLeaveHours }, {
       return fail(`Less than ${hours(fullDayMinutes)} worked. Select ${short ? short.label : 'a leave'} or another leave as the reason.`);
     }
     if (!presentReasons().includes(reason)) return fail(`${labelOf(reason)} can't be used with Present.`);
+    if (!HALVES.includes(half)) return fail('Select whether the leave is for the first half or the second half of the day.');
 
     if (reason === shortLeaveKey()) {
       const hrs = Number(shortLeaveHours);
       if (!allowedHours.includes(hrs)) return fail(`Select ${allowedHours.join(' or ')} hours for the short leave.`);
       if (mins + hrs * 60 < fullDayMinutes) return fail(`Time worked plus short leave must be at least ${hours(fullDayMinutes)}.`);
-      return { value: { ...base, totalMinutes: mins, reason, shortLeaveHours: hrs } };
+      return { value: { ...base, totalMinutes: mins, reason, shortLeaveHours: hrs, half } };
     }
 
-    // Any other leave on a working day = half-day leave.
-    if (mins < halfDayMinutes) return fail(`A leave with Present needs at least ${hours(halfDayMinutes)} worked (it counts as a half day).`);
-    return { value: { ...base, totalMinutes: mins, reason, leaveDays: 0.5 } };
+    // Any other leave on a working day = half-day leave. Relaxation has no minimum: whatever total time is entered is saved.
+    if (reason !== RELAXATION_KEY && mins < halfDayMinutes) return fail(`A leave with Present needs at least ${hours(halfDayMinutes)} worked (it counts as a half day).`);
+    return { value: { ...base, totalMinutes: mins, reason, leaveDays: 0.5, half } };
   }
 
   return fail('Select a status.');

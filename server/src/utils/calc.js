@@ -38,7 +38,7 @@ export function getMonthMeta(month, holidays = new Map(), weekOffDays = []) {
  * Turns an employee's daily records for the month into salary-ready numbers.
  * Each record has: status, reason, leaveDays (0 / 0.5 / 1), shortLeaveHours, totalMinutes.
  */
-export function summarize(records, meta) {
+export function summarize(records, meta, { eightHourPolicy = true } = {}) {
   let daysWorked = 0;
   let paidLeaves = 0;
   let unpaidLeaves = 0;
@@ -55,14 +55,14 @@ export function summarize(records, meta) {
     const unpaid = isUnpaidReason(r.reason); // leave_types.is_paid = 0 (PLACEHOLDER: every other leave is paid)
     if (r.status === 'present') {
       // Overtime: whatever was worked beyond a full day.
-      if ((r.totalMinutes || 0) > fullDayMinutes) overtimeMinutes += r.totalMinutes - fullDayMinutes;
+      if (eightHourPolicy && (r.totalMinutes || 0) > fullDayMinutes) overtimeMinutes += r.totalMinutes - fullDayMinutes;
       daysWorked += 1 - (r.leaveDays || 0);
       if (unpaid) unpaidLeaves += r.leaveDays || 0; // half-day unpaid leave -> 0.5 deducted
       else paidLeaves += r.leaveDays || 0;
     } else if (r.status === 'on_leave') {
       if (unpaid) unpaidLeaves += 1;
       else paidLeaves += 1;
-    } else if (r.status === 'absent') {
+    } else if (r.status === 'absent' || r.status === 'p_available') { // P Available is an unpaid day
       unpaidLeaves += 1;
     }
   }

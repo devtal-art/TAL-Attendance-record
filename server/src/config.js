@@ -35,7 +35,7 @@ export async function loadConfig() {
   const num = (v, fallback) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fallback);
 
   cache = {
-    statuses: ['present', 'absent', 'on_leave'],
+    statuses: ['present', 'absent', 'on_leave', 'p_available'],
     shifts: shifts.map((r) => {
       const workDays = (r.workDays || []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
       return { key: r.key, label: r.label, workDays, days: daysLabel(workDays) };

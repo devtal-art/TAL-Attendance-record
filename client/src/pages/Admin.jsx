@@ -59,6 +59,12 @@ function EmployeeForm({ initial, onCancel, onSaved }) {
               {cfg.shifts.map((s) => <option key={s.key} value={s.key}>{s.label} · {s.days}</option>)}
             </select>
           </label>
+          <label>8 hour policy
+            <select value={f.eightHourPolicy === false ? 'no' : 'yes'} onChange={(e) => setF({ ...f, eightHourPolicy: e.target.value === 'yes' })}>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
         </div>
         {!editing && <p className="muted small">New employees start with 5 days of every leave and 10 hours of Short Leave.</p>}
         {error && <div className="error">{error}</div>}

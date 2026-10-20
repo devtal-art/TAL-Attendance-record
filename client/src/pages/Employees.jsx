@@ -15,6 +15,7 @@ function Detail({ data }) {
   const overtimeOf = (d) => {
     const r = d.record;
     if (!r || r.status !== 'present') return 0;
+    if (d.off?.type !== 'week_off' && data.employee.eightHourPolicy === false) return 0;
     return d.off?.type === 'week_off' ? r.totalMinutes : Math.max(0, r.totalMinutes - cfg.fullDayMinutes);
   };
 
