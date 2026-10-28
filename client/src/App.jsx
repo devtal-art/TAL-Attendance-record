@@ -4,6 +4,7 @@ import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Daily from './pages/Daily.jsx';
 import Monthly from './pages/Monthly.jsx';
+import Calendar from './pages/Calendar.jsx';
 import Admin from './pages/Admin.jsx';
 import Employees from './pages/Employees.jsx';
 
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="login" element={<Login />} />
         <Route path="daily" element={<RequireAuth><Daily /></RequireAuth>} />
         <Route path="monthly" element={<RequireAuth><Monthly /></RequireAuth>} />
+        <Route path="calendar" element={<RequireAuth><Calendar /></RequireAuth>} />
         <Route path="admin" element={<RequireAuth><Admin /></RequireAuth>} />
       </Route>
       <Route path="*" element={<Navigate to="/employees" replace />} />

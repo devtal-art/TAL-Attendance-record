@@ -16,6 +16,7 @@ export const C = {
   get employees() { return col('employees'); },
   get attendance() { return col('attendance'); },
   get holidays() { return col('holidays'); },
+  get weekOffOverrides() { return col('weekoff_overrides'); },
   get adminUsers() { return col('admin_users'); },
   get sessions() { return col('sessions'); },
 };
@@ -72,6 +73,8 @@ async function ensureIndexes() {
     C.attendance.createIndex({ employeeId: 1, date: 1 }, { unique: true }),   // one record per employee per day
     C.attendance.createIndex({ date: 1 }),
     C.holidays.createIndex({ date: 1 }, { unique: true }),
+    C.weekOffOverrides.createIndex({ employeeId: 1, date: 1 }, { unique: true }), // one extra week off per employee per day
+    C.weekOffOverrides.createIndex({ date: 1 }),
     C.adminUsers.createIndex({ username: 1 }, { unique: true, collation: CI }),
     C.sessions.createIndex({ tokenHash: 1 }, { unique: true }),
     C.sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }),     // MongoDB deletes expired sessions itself

@@ -188,3 +188,10 @@ select.status-select.off { background: var(--off-bg); color: var(--muted); }
 .login-wrap { display: grid; place-items: center; min-height: 60vh; }
 .login input.readonly { background: var(--none-bg); color: var(--muted); cursor: default; }
 .login input.readonly:focus { outline: none; }
+
+/* Attendance Calendar: clickable day cells and the edit popup */
+.register td.cell.editable { cursor: pointer; } .register td.cell.editable:hover { box-shadow: inset 0 0 0 2px var(--accent); }
+.modal.xl { width: 1000px; }
+.day-type { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin: 12px 0 6px; }
+.day-type label { min-width: 220px; }
+.modal-sub { font-size: 14px; margin: 14px 0 4px; }

@@ -42,7 +42,7 @@ function normalize(d, cfg, weekOff) {
   return next;
 }
 
-function Row({ item, date, onSaved }) {
+export function Row({ item, date, onSaved }) {
   const { employee, weekOff: isWeekOff } = item;
   const noPolicy = employee.eightHourPolicy === false; // no 8-hour rules: just a time, no leave reason
   const weekOff = isWeekOff || noPolicy; // drives the reason rules; the real week off is still isWeekOff

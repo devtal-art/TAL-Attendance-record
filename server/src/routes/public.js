@@ -7,6 +7,7 @@ import { getMonthMeta, summarize } from '../utils/calc.js';
 import { recordJson, monthEnd } from '../utils/mappers.js';
 import { loadHolidays } from '../utils/holidays.js';
 import { weekOffDays } from '../utils/rules.js';
+import { loadWeekOffOverrides } from '../utils/weekoffs.js';
 
 const router = Router();
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -20,10 +21,11 @@ const publicRecord = (r) => ({
 router.get('/employees', wrap(async (req, res) => {
   const month = String(req.query.month ?? '');
   if (!MONTH_RE.test(month)) return res.status(400).json({ message: 'month must be YYYY-MM' });
-  const [holidays, employees, records] = await Promise.all([
+  const [holidays, employees, records, extraOffs] = await Promise.all([
     loadHolidays(month),
     C.employees.find({ active: true }, { collation: { locale: 'en', strength: 2 } }).sort({ name: 1 }).toArray(),
     C.attendance.find({ date: { $gte: `${month}-01`, $lte: monthEnd(month) } }).toArray(),
+    loadWeekOffOverrides(month),
   ]);
   const byEmp = new Map();
   for (const r of records) {
@@ -34,7 +36,7 @@ router.get('/employees', wrap(async (req, res) => {
   res.json({
     rows: employees.map((e) => {
       const recs = byEmp.get(String(e._id)) || [];
-      const summary = summarize(recs, getMonthMeta(month, holidays, weekOffDays(e.shift)), { eightHourPolicy: e.eightHourPolicy !== false });
+      const summary = summarize(recs, getMonthMeta(month, holidays, weekOffDays(e.shift), extraOffs.get(String(e._id))), { eightHourPolicy: e.eightHourPolicy !== false });
       return {
         employee: publicEmployee(e),
         shift: e.shift,
@@ -54,12 +56,13 @@ router.get('/employees/:id/register', wrap(async (req, res) => {
   const employee = id && (await C.employees.findOne({ _id: id, active: true }));
   if (!employee) return res.status(404).json({ message: 'Employee not found' });
 
-  const [holidays, rows] = await Promise.all([
+  const [holidays, rows, extraOffs] = await Promise.all([
     loadHolidays(month),
     C.attendance.find({ employeeId: id, date: { $gte: `${month}-01`, $lte: monthEnd(month) } }).toArray(),
+    loadWeekOffOverrides(month),
   ]);
   const byDate = new Map(rows.map((r) => [r.date, recordJson(r)]));
-  const own = getMonthMeta(month, holidays, weekOffDays(employee.shift));
+  const own = getMonthMeta(month, holidays, weekOffDays(employee.shift), extraOffs.get(String(id)));
   res.json({
     employee: { ...publicEmployee(employee), shift: employee.shift, eightHourPolicy: employee.eightHourPolicy !== false },
     days: own.days.map((d) => ({

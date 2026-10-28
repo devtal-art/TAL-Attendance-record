@@ -15,8 +15,9 @@ const pad = (n) => String(n).padStart(2, '0');
  * @param {string} month  'YYYY-MM'
  * @param {Map<string,string>} holidays  date -> holiday name (from the Holiday collection)
  * @param {number[]} weekOffDays  weekdays (0 = Sunday) that are this employee's weekly off, from their shift
+ * @param {Map<string,boolean>} overrides  dates the admin set for this employee: true = week off, false = working day
  */
-export function getMonthMeta(month, holidays = new Map(), weekOffDays = []) {
+export function getMonthMeta(month, holidays = new Map(), weekOffDays = [], overrides = new Map()) {
   const [y, m] = month.split('-').map(Number);
   const totalDays = new Date(y, m, 0).getDate();
   const days = [];
@@ -26,7 +27,7 @@ export function getMonthMeta(month, holidays = new Map(), weekOffDays = []) {
     let off = null;
     let offType = null;
     if (holidays.has(date)) { off = holidays.get(date); offType = 'holiday'; }
-    else if (weekOffDays.includes(dow)) { off = 'Week Off'; offType = 'week_off'; }
+    else if (overrides.has(date) ? overrides.get(date) : weekOffDays.includes(dow)) { off = 'Week Off'; offType = 'week_off'; }
     days.push({ date, day: d, dow, off, offType });
   }
   const weekOffs = days.filter((d) => d.offType === 'week_off').length;

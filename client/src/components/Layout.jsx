@@ -5,7 +5,7 @@ import { useAuth } from '../auth.jsx';
 // Two modules:
 //   Attendance Management - needs sign-in; its three sections appear under it once you are signed in
 //   Employees             - open to everyone, and the page you land on
-const MANAGEMENT = [['/daily', 'Daily Attendance'], ['/monthly', 'Monthly Record'], ['/admin', 'Admin']];
+const MANAGEMENT = [['/daily', 'Daily Attendance'], ['/monthly', 'Monthly Record'], ['/calendar', 'Attendance Calendar'], ['/admin', 'Admin']];
 
 const Svg = ({ children }) => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>

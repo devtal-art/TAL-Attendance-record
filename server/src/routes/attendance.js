@@ -6,6 +6,7 @@ import { usedMap, balancesFor } from '../utils/balance.js';
 import { employeeJson, recordJson, isRealDate, monthEnd } from '../utils/mappers.js';
 import { buildRecord, usageOf, labelOf, unitOf, isWeekOff, weekOffDays } from '../utils/rules.js';
 import { loadHolidays } from '../utils/holidays.js';
+import { loadWeekOffOverrides, loadWeekOffOverridesOn } from '../utils/weekoffs.js';
 
 const router = Router();
 
@@ -16,11 +17,12 @@ const BY_NAME = { collation: { locale: 'en', strength: 2 } };
 router.get('/daily', wrap(async (req, res) => {
   const { date } = req.query;
   if (!isRealDate(date)) return res.status(400).json({ message: 'date must be YYYY-MM-DD' });
-  const [employees, records, holiday, used] = await Promise.all([
+  const [employees, records, holiday, used, extraOff] = await Promise.all([
     C.employees.find({ active: true }, BY_NAME).sort({ name: 1 }).toArray(),
     C.attendance.find({ date }).toArray(),
     C.holidays.findOne({ date }),
     usedMap(),
+    loadWeekOffOverridesOn(date),
   ]);
   const byEmp = new Map(records.map((r) => [String(r.employeeId), recordJson(r)]));
   res.json({
@@ -29,7 +31,7 @@ router.get('/daily', wrap(async (req, res) => {
     items: employees.map((e) => ({
       employee: employeeJson(e),
       record: byEmp.get(String(e._id)) || null,
-      weekOff: !holiday && isWeekOff(e.shift, date), // this date is outside the employee's shift (a holiday takes precedence)
+      weekOff: !holiday && (extraOff.has(String(e._id)) ? extraOff.get(String(e._id)) : isWeekOff(e.shift, date)), // the admin's day type if set, else the employee's shift (a holiday takes precedence)
       balances: balancesFor(e.leaveAllowance, used.get(String(e._id))),
     })),
   });
@@ -52,7 +54,8 @@ router.put('/daily', wrap(async (req, res) => {
     await C.attendance.deleteOne({ employeeId: id, date });
   } else {
     const onHoliday = await C.holidays.findOne({ date }, { projection: { _id: 1 } });
-    const weekOff = !onHoliday && isWeekOff(employee.shift, date);
+    const dayType = await C.weekOffOverrides.findOne({ employeeId: id, date });
+    const weekOff = !onHoliday && (dayType ? dayType.off !== false : isWeekOff(employee.shift, date));
     const result = buildRecord({ status, totalMinutes, reason, shortLeaveHours, half }, { weekOff, eightHourPolicy: employee.eightHourPolicy !== false });
     if (result.error) return res.status(400).json({ message: result.error });
     const v = result.value;
@@ -89,10 +92,11 @@ router.put('/daily', wrap(async (req, res) => {
 router.get('/monthly', wrap(async (req, res) => {
   const month = String(req.query.month ?? '');
   if (!MONTH_RE.test(month)) return res.status(400).json({ message: 'month must be YYYY-MM' });
-  const [holidays, employees, records] = await Promise.all([
+  const [holidays, employees, records, extraOffs] = await Promise.all([
     loadHolidays(month),
     C.employees.find({ active: true }, BY_NAME).sort({ name: 1 }).toArray(),
     C.attendance.find({ date: { $gte: `${month}-01`, $lte: monthEnd(month) } }).toArray(),
+    loadWeekOffOverrides(month),
   ]);
   const byEmp = new Map();
   for (const r of records) {
@@ -104,7 +108,7 @@ router.get('/monthly', wrap(async (req, res) => {
     meta: getMonthMeta(month, holidays),
     rows: employees.map((e) => {
       const recs = byEmp.get(String(e._id)) || [];
-      const own = getMonthMeta(month, holidays, weekOffDays(e.shift));
+      const own = getMonthMeta(month, holidays, weekOffDays(e.shift), extraOffs.get(String(e._id)));
       return {
         employee: employeeJson(e),
         shift: e.shift,
@@ -115,6 +119,24 @@ router.get('/monthly', wrap(async (req, res) => {
       };
     }),
   });
+}));
+
+// Admin sets one date as a week off or a working day for one employee. Setting it to what their shift already says
+// removes the override. (A company holiday still takes precedence.)
+router.put('/weekoff', wrap(async (req, res) => {
+  const { employee: employeeId, date, weekOff } = req.body || {};
+  if (!isRealDate(date)) return res.status(400).json({ message: 'date must be YYYY-MM-DD' });
+  const id = oid(employeeId);
+  const employee = id && (await C.employees.findOne({ _id: id }, { projection: { shift: 1 } }));
+  if (!employee) return res.status(404).json({ message: 'Employee not found' });
+
+  const off = !!weekOff;
+  if (off === isWeekOff(employee.shift, date)) {
+    await C.weekOffOverrides.deleteOne({ employeeId: id, date });
+  } else {
+    await C.weekOffOverrides.updateOne({ employeeId: id, date }, { $set: { off, updatedAt: new Date() }, $setOnInsert: { employeeId: id, date, createdAt: new Date() } }, { upsert: true });
+  }
+  res.json({ ok: true });
 }));
 
 export default router;
