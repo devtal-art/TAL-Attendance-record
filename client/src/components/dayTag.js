@@ -11,13 +11,17 @@ export const LEGEND = [
   ['absent', 'A', 'Absent'],
   ['wo', 'WO', 'Week Off'],
   ['holiday', 'H', 'Holiday'],
+  ['present relaxed', 'P', 'Relaxation (dark border)'],
 ];
+
+const RELAXATION = 'relaxation'; // leave key of management's relaxation
 
 /**
  * @param r   the day's attendance record (or undefined)
  * @param o   { type: 'week_off' | 'holiday', name } when the day is the employee's week off or a company holiday
  * @param cfg client config (for leave labels and whether a leave is paid)
- * @returns { kind, code, tip }  kind = tag colour, code = text in the tag, tip = hover text
+ * @returns { kind, code, tip, cls }  kind = tag colour, code = text in the tag, tip = hover text,
+ *          cls = full class list for the tag (adds the relaxation border and the worked-on-a-day-off ring)
  */
 export function dayTag(r, o, cfg) {
   const half = r?.status === 'present' && r.leaveDays === 0.5;
@@ -31,5 +35,6 @@ export function dayTag(r, o, cfg) {
   const tip = r
     ? [STATUS[r.status].label, r.reason && cfg.reasonLabel(r.reason), r.shortLeaveHours && `${r.shortLeaveHours}h`, r.half && (r.half === 'first' ? 'First half' : 'Second half'), r.relaxationMinutes && `${r.relaxationMinutes}m relaxed`, o && `(${o.name})`].filter(Boolean).join(' · ')
     : o ? o.name : '';
-  return { kind, code, tip };
+  const cls = ['tag', kind, r?.reason === RELAXATION && 'relaxed', r && o && 'on-off'].filter(Boolean).join(' ');
+  return { kind, code, tip, cls };
 }

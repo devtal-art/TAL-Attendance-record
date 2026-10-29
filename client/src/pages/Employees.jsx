@@ -24,7 +24,7 @@ function Detail({ data }) {
       <h4>Day-wise register</h4>
       <div className="chips">
         {LEGEND.map(([kind, code, text]) => (
-          <span key={code} className="legend-item"><span className={`tag ${kind}`}>{code}</span>{text}</span>
+          <span key={code + text} className="legend-item"><span className={`tag ${kind}`}>{code}</span>{text}</span>
         ))}
         <span className="muted small">Hover a day for the details. Click a date to edit that day.</span>
       </div>
@@ -46,11 +46,11 @@ function Detail({ data }) {
             <tr>
               <td className="sticky-col strong">Status</td>
               {days.map((d) => {
-                const { kind, code, tip } = dayTag(d.record, d.off, cfg);
+                const { kind, code, tip, cls } = dayTag(d.record, d.off, cfg);
                 const time = d.record?.status === 'present' ? ` · ${fmtHM(d.record.totalMinutes)}` : '';
                 return (
                   <td key={d.date} title={tip + time} className={`cell ${d.off ? 'off' : ''}`}>
-                    {kind && <span className={`tag ${kind} ${d.record && d.off ? 'on-off' : ''}`}>{code}</span>}
+                    {kind && <span className={cls}>{code}</span>}
                   </td>
                 );
               })}

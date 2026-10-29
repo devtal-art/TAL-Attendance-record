@@ -87,7 +87,7 @@ function Register({ data }) {
     <>
       <div className="chips">
         {LEGEND.map(([kind, code, text]) => (
-          <span key={code} className="legend-item"><span className={`tag ${kind}`}>{code}</span>{text}</span>
+          <span key={code + text} className="legend-item"><span className={`tag ${kind}`}>{code}</span>{text}</span>
         ))}
         <span className="muted small">Hover a cell for the reason. Click a date to edit that day.</span>
       </div>
@@ -112,10 +112,10 @@ function Register({ data }) {
                 {meta.days.map((d) => {
                   const r = days[d.date];
                   const o = off[d.date]; // this employee's week off, or a company holiday
-                  const { kind, code, tip } = dayTag(r, o, cfg);
+                  const { kind, code, tip, cls } = dayTag(r, o, cfg);
                   return (
                     <td key={d.date} title={tip} className={`cell ${o ? 'off' : ''}`}>
-                      {kind && <span className={`tag ${kind} ${r && o ? 'on-off' : ''}`}>{code}</span>}
+                      {kind && <span className={cls}>{code}</span>}
                     </td>
                   );
                 })}

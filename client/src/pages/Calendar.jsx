@@ -137,10 +137,10 @@ export default function Calendar() {
                   {data.meta.days.map((d) => {
                     const r = row.days[d.date];
                     const o = row.off[d.date];
-                    const { kind, code, tip } = dayTag(r, o, cfg);
+                    const { kind, code, tip, cls } = dayTag(r, o, cfg);
                     return (
                       <td key={d.date} title={tip} className={`cell editable ${o ? 'off' : ''}`} onClick={() => setEditing({ id: row.employee._id, date: d.date })}>
-                        {kind && <span className={`tag ${kind} ${r && o ? 'on-off' : ''}`}>{code}</span>}
+                        {kind && <span className={cls}>{code}</span>}
                       </td>
                     );
                   })}

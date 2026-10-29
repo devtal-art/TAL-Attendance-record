@@ -10,6 +10,7 @@
   --none: #6a7488; --none-bg: #eceff5;
   --off-bg: #eef0f5;
   --holiday: #5b2fb8; --holiday-bg: #ebe2ff;
+  --relaxed: #0f4f5c;
   --g-emp: #2f5fcf; --g-month: #0b6b50; --g-att: #d4650a; --g-pay: #6a2fd0;
 }
 * { box-sizing: border-box; }
@@ -150,6 +151,8 @@ select.status-select.off { background: var(--off-bg); color: var(--muted); }
 .tag.holiday { background: var(--holiday-bg); color: var(--holiday); }
 .tag.wo      { background: transparent; color: var(--muted); font-size: 10px; font-weight: 600; }
 .tag.on-off  { box-shadow: 0 0 0 2px var(--muted); } /* worked / marked on a week off or holiday */
+.tag.relaxed { box-shadow: inset 0 0 0 2px var(--relaxed); } /* relaxation day: dark inner border, tag size unchanged */
+.tag.relaxed.on-off { box-shadow: inset 0 0 0 2px var(--relaxed), 0 0 0 2px var(--muted); }
 .legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-right: 6px; }
 
 /* Employees page: accordion of employee records */
