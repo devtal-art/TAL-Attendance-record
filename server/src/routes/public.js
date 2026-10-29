@@ -14,7 +14,7 @@ const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 const publicEmployee = (e) => ({ _id: String(e._id), name: e.name, employeeId: e.employeeCode || undefined });
 const publicRecord = (r) => ({
-  status: r.status, reason: r.reason, leaveDays: r.leaveDays, shortLeaveHours: r.shortLeaveHours, totalMinutes: r.totalMinutes, half: r.half,
+  status: r.status, reason: r.reason, leaveDays: r.leaveDays, shortLeaveHours: r.shortLeaveHours, totalMinutes: r.totalMinutes, half: r.half, relaxationMinutes: r.relaxationMinutes,
 });
 
 // All active employees with the few numbers shown in the collapsed accordion row.

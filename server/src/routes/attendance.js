@@ -40,7 +40,7 @@ router.get('/daily', wrap(async (req, res) => {
 // Create/update (or clear, when status is empty) one employee's record for one day.
 // All rules are enforced by buildRecord(); a broken rule comes back as a 400 with a readable message.
 router.put('/daily', wrap(async (req, res) => {
-  const { employee: employeeId, date, status, totalMinutes, reason, shortLeaveHours, half } = req.body || {};
+  const { employee: employeeId, date, status, totalMinutes, reason, shortLeaveHours, half, relaxationMinutes } = req.body || {};
   if (!isRealDate(date)) return res.status(400).json({ message: 'date must be YYYY-MM-DD' });
   const id = oid(employeeId);
   const employee = id && (await C.employees.findOne({ _id: id }));
@@ -56,7 +56,7 @@ router.put('/daily', wrap(async (req, res) => {
     const onHoliday = await C.holidays.findOne({ date }, { projection: { _id: 1 } });
     const dayType = await C.weekOffOverrides.findOne({ employeeId: id, date });
     const weekOff = !onHoliday && (dayType ? dayType.off !== false : isWeekOff(employee.shift, date));
-    const result = buildRecord({ status, totalMinutes, reason, shortLeaveHours, half }, { weekOff, eightHourPolicy: employee.eightHourPolicy !== false });
+    const result = buildRecord({ status, totalMinutes, reason, shortLeaveHours, half, relaxationMinutes }, { weekOff, eightHourPolicy: employee.eightHourPolicy !== false });
     if (result.error) return res.status(400).json({ message: result.error });
     const v = result.value;
 
@@ -74,7 +74,7 @@ router.put('/daily', wrap(async (req, res) => {
     const saved = await C.attendance.findOneAndUpdate(
       { employeeId: id, date },
       {
-        $set: { status: v.status, totalMinutes: v.totalMinutes, reason: v.reason, shortLeaveHours: v.shortLeaveHours, leaveDays: v.leaveDays, half: v.half, updatedAt: now },
+        $set: { status: v.status, totalMinutes: v.totalMinutes, reason: v.reason, shortLeaveHours: v.shortLeaveHours, leaveDays: v.leaveDays, half: v.half, relaxationMinutes: v.relaxationMinutes, updatedAt: now },
         $setOnInsert: { createdAt: now },
       },
       { upsert: true, returnDocument: 'after' }
@@ -115,7 +115,7 @@ router.get('/monthly', wrap(async (req, res) => {
         month: { totalDays: own.totalDays, workingDays: own.workingDays, weekOffs: own.weekOffs, holidays: own.holidays },
         off: Object.fromEntries(own.days.filter((d) => d.off).map((d) => [d.date, { type: d.offType, name: d.off }])),
         summary: summarize(recs, own, { eightHourPolicy: e.eightHourPolicy !== false }),
-        days: Object.fromEntries(recs.map((r) => [r.date, { status: r.status, reason: r.reason, leaveDays: r.leaveDays, shortLeaveHours: r.shortLeaveHours, totalMinutes: r.totalMinutes, half: r.half }])),
+        days: Object.fromEntries(recs.map((r) => [r.date, { status: r.status, reason: r.reason, leaveDays: r.leaveDays, shortLeaveHours: r.shortLeaveHours, totalMinutes: r.totalMinutes, half: r.half, relaxationMinutes: r.relaxationMinutes ?? null }])),
       };
     }),
   });

@@ -29,7 +29,7 @@ export function dayTag(r, o, cfg) {
     ? (r.status === 'present' ? (half ? 'P½' : 'P') : r.status === 'on_leave' ? 'L' : r.status === 'p_available' ? 'PA' : 'A')
     : o ? (o.type === 'holiday' ? 'H' : 'WO') : '';
   const tip = r
-    ? [STATUS[r.status].label, r.reason && cfg.reasonLabel(r.reason), r.shortLeaveHours && `${r.shortLeaveHours}h`, r.half && (r.half === 'first' ? 'First half' : 'Second half'), o && `(${o.name})`].filter(Boolean).join(' · ')
+    ? [STATUS[r.status].label, r.reason && cfg.reasonLabel(r.reason), r.shortLeaveHours && `${r.shortLeaveHours}h`, r.half && (r.half === 'first' ? 'First half' : 'Second half'), r.relaxationMinutes && `${r.relaxationMinutes}m relaxed`, o && `(${o.name})`].filter(Boolean).join(' · ')
     : o ? o.name : '';
   return { kind, code, tip };
 }

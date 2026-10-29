@@ -21,6 +21,7 @@ export const recordJson = (d) => ({
   shortLeaveHours: d.shortLeaveHours ?? null,
   leaveDays: Number(d.leaveDays ?? 0),
   half: d.half ?? null,
+  relaxationMinutes: d.relaxationMinutes ?? null,
 });
 
 export const holidayJson = (d) => ({ _id: String(d._id), date: d.date, name: d.name });

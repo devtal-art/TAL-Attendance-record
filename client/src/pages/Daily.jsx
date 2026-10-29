@@ -5,7 +5,8 @@ import { GroupFilters, PageHead, Stepper } from '../components/Bits.jsx';
 import { useConfig } from '../config.jsx';
 import { STATUS, STATUS_KEYS, addDays, fmtMinutes, fmtNum, matchesGroup, prettyDate, todayISO } from '../utils.js';
 
-const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '', half: '' };
+const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '', half: '', relaxHours: '', relaxMinutes: '' };
+const RELAXATION = 'relaxation'; // the leave whose time (management's relaxation) can be added to the worked time
 
 const hasTime = (status) => status === 'present' || status === 'p_available';
 
@@ -17,10 +18,13 @@ const toDraft = (rec) => rec
       reason: rec.reason || '',
       shortLeaveHours: rec.shortLeaveHours ? String(rec.shortLeaveHours) : '',
       half: rec.half || '',
+      relaxHours: rec.relaxationMinutes ? String(Math.floor(rec.relaxationMinutes / 60)) : '',
+      relaxMinutes: rec.relaxationMinutes ? String(rec.relaxationMinutes % 60) : '',
     }
   : EMPTY;
 
 const minutesOf = (d) => (Number(d.hours) || 0) * 60 + (Number(d.minutes) || 0);
+const relaxOf = (d) => (d.reason === RELAXATION ? (Number(d.relaxHours) || 0) * 60 + (Number(d.relaxMinutes) || 0) : 0);
 
 // Which reasons the dropdown offers, and whether it is enabled, for the current status/time.
 function reasonOptions(d, cfg, weekOff) {
@@ -38,6 +42,7 @@ function normalize(d, cfg, weekOff) {
   const options = reasonOptions(next, cfg, weekOff);
   if (!options || !options.includes(next.reason)) next.reason = '';
   if (next.reason !== cfg.shortLeaveKey) next.shortLeaveHours = '';
+  if (next.reason !== RELAXATION) { next.relaxHours = ''; next.relaxMinutes = ''; }
   if (next.status !== 'present' || !next.reason) next.half = ''; // only a leave taken with Present has a half
   return next;
 }
@@ -64,6 +69,8 @@ export function Row({ item, date, onSaved }) {
   const dirty = JSON.stringify(d) !== JSON.stringify(saved);
   const change = (patch) => { setError(''); setD(normalize({ ...d, ...patch }, cfg, weekOff)); };
   const options = reasonOptions(d, cfg, weekOff);
+  // Relaxation that brings the worked time up to a full day makes it a full day: no half to choose, no half-day chip.
+  const relaxedFull = d.reason === RELAXATION && relaxOf(d) > 0 && minutesOf(d) + relaxOf(d) >= cfg.fullDayMinutes;
   // Overtime: everything on a week off, otherwise whatever is beyond a full day.
   const overtime = d.status === 'present' ? (isWeekOff ? minutesOf(d) : noPolicy ? 0 : Math.max(0, minutesOf(d) - cfg.fullDayMinutes)) : 0;
 
@@ -76,7 +83,8 @@ export function Row({ item, date, onSaved }) {
         totalMinutes: hasTime(d.status) ? minutesOf(d) : 0,
         reason: d.reason || null,
         shortLeaveHours: d.shortLeaveHours ? Number(d.shortLeaveHours) : null,
-        half: d.half || null,
+        half: relaxedFull ? null : d.half || null,
+        relaxationMinutes: relaxOf(d) || null,
       });
       const next = toDraft(rec);
       setSaved(next);
@@ -126,14 +134,22 @@ export function Row({ item, date, onSaved }) {
                 {cfg.shortLeaveHours.map((h) => <option key={h} value={h} disabled={h > leftFor(cfg.shortLeaveKey)}>{h} hour{h > 1 ? 's' : ''}</option>)}
               </select>
             )}
-            {d.status === 'present' && d.reason && (
+            {d.status === 'present' && d.reason === RELAXATION && (
+              <div className="time-cell" title="Time management relaxed. Worked time + relaxation reaching a full day counts as a full day.">
+                <input type="number" min="0" max="8" placeholder="hh" value={d.relaxHours} onChange={(e) => change({ relaxHours: e.target.value })} />
+                <span>h</span>
+                <input type="number" min="0" max="59" placeholder="mm" value={d.relaxMinutes} onChange={(e) => change({ relaxMinutes: e.target.value })} />
+                <span>m relaxed</span>
+              </div>
+            )}
+            {d.status === 'present' && d.reason && !relaxedFull && (
               <select value={d.half} onChange={(e) => change({ half: e.target.value })}>
                 <option value="">Which half?</option>
                 <option value="first">First half</option>
                 <option value="second">Second half</option>
               </select>
             )}
-            {d.status === 'present' && d.reason && d.reason !== cfg.shortLeaveKey && <span className="chip half">Half day</span>}
+            {d.status === 'present' && d.reason && d.reason !== cfg.shortLeaveKey && !relaxedFull && <span className="chip half">Half day</span>}
           </div>
         </td>
         <td className="save-cell"><div>

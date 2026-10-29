@@ -37,9 +37,9 @@ const fail = (error) => ({ error });
  *   Working on a week off is all overtime, so Present needs only a time - no 8-hour minimum, no leave reason.
  *   eightHourPolicy: false (employee setting) drops the 8-hour rules for Present the same way.
  */
-export function buildRecord({ status, totalMinutes, reason, shortLeaveHours, half }, { weekOff = false, eightHourPolicy = true } = {}) {
+export function buildRecord({ status, totalMinutes, reason, shortLeaveHours, half, relaxationMinutes }, { weekOff = false, eightHourPolicy = true } = {}) {
   const { fullDayMinutes, halfDayMinutes, maxMinutes, shortLeaveHours: allowedHours } = getConfig().settings;
-  const base = { status, totalMinutes: 0, reason: null, shortLeaveHours: null, leaveDays: 0, half: null };
+  const base = { status, totalMinutes: 0, reason: null, shortLeaveHours: null, leaveDays: 0, half: null, relaxationMinutes: null };
 
   if (status === 'absent') return { value: base };
 
@@ -70,6 +70,15 @@ export function buildRecord({ status, totalMinutes, reason, shortLeaveHours, hal
       return fail(`Less than ${hours(fullDayMinutes)} worked. Select ${short ? short.label : 'a leave'} or another leave as the reason.`);
     }
     if (!presentReasons().includes(reason)) return fail(`${labelOf(reason)} can't be used with Present.`);
+
+    // Relaxation: the admin may add the time management relaxed. Worked time + relaxation reaching a full day counts as a full day.
+    if (reason === RELAXATION_KEY) {
+      const relax = relaxationMinutes === undefined || relaxationMinutes === null || relaxationMinutes === '' ? 0 : Number(relaxationMinutes);
+      if (!Number.isInteger(relax) || relax < 0 || relax > fullDayMinutes) return fail(`Relaxation time must be between 0 and ${hours(fullDayMinutes)}.`);
+      if (relax > 0 && mins + relax >= fullDayMinutes) return { value: { ...base, totalMinutes: mins, reason, relaxationMinutes: relax } };
+      if (relax > 0) base.relaxationMinutes = relax;
+    }
+
     if (!HALVES.includes(half)) return fail('Select whether the leave is for the first half or the second half of the day.');
 
     if (reason === shortLeaveKey()) {
