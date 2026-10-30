@@ -71,25 +71,30 @@ export function buildRecord({ status, totalMinutes, reason, shortLeaveHours, hal
     }
     if (!presentReasons().includes(reason)) return fail(`${labelOf(reason)} can't be used with Present.`);
 
-    // Relaxation: the admin may add the time management relaxed. Worked time + relaxation reaching a full day counts as a full day.
-    if (reason === RELAXATION_KEY) {
-      const relax = relaxationMinutes === undefined || relaxationMinutes === null || relaxationMinutes === '' ? 0 : Number(relaxationMinutes);
-      if (!Number.isInteger(relax) || relax < 0 || relax > fullDayMinutes) return fail(`Relaxation time must be between 0 and ${hours(fullDayMinutes)}.`);
-      if (relax > 0 && mins + relax >= fullDayMinutes) return { value: { ...base, totalMinutes: mins, reason, relaxationMinutes: relax } };
-      if (relax > 0) base.relaxationMinutes = relax;
-    }
+    // Relaxation time (the time management relaxed) can come with any leave taken with Present ("Relaxation too"),
+    // and counts toward the time that leave needs.
+    const relax = relaxationMinutes === undefined || relaxationMinutes === null || relaxationMinutes === '' ? 0 : Number(relaxationMinutes);
+    if (!Number.isInteger(relax) || relax < 0 || relax > fullDayMinutes) return fail(`Relaxation time must be between 0 and ${hours(fullDayMinutes)}.`);
+    if (relax > 0) base.relaxationMinutes = relax;
+
+    // Relaxation as the reason: worked time + relaxation reaching a full day counts as a full day.
+    if (reason === RELAXATION_KEY && relax > 0 && mins + relax >= fullDayMinutes) return { value: { ...base, totalMinutes: mins, reason } };
 
     if (!HALVES.includes(half)) return fail('Select whether the leave is for the first half or the second half of the day.');
 
     if (reason === shortLeaveKey()) {
       const hrs = Number(shortLeaveHours);
       if (!allowedHours.includes(hrs)) return fail(`Select ${allowedHours.join(' or ')} hours for the short leave.`);
-      if (mins + hrs * 60 < fullDayMinutes) return fail(`Time worked plus short leave must be at least ${hours(fullDayMinutes)}.`);
+      if (mins + hrs * 60 + relax < fullDayMinutes) {
+        return fail(`Time worked plus short leave${relax ? ' plus relaxation' : ''} must be at least ${hours(fullDayMinutes)}.`);
+      }
       return { value: { ...base, totalMinutes: mins, reason, shortLeaveHours: hrs, half } };
     }
 
     // Any other leave on a working day = half-day leave. Relaxation has no minimum: whatever total time is entered is saved.
-    if (reason !== RELAXATION_KEY && mins < halfDayMinutes) return fail(`A leave with Present needs at least ${hours(halfDayMinutes)} worked (it counts as a half day).`);
+    if (reason !== RELAXATION_KEY && mins + relax < halfDayMinutes) {
+      return fail(`A leave with Present needs at least ${hours(halfDayMinutes)} worked${relax ? ' (including relaxation)' : ''} (it counts as a half day).`);
+    }
     return { value: { ...base, totalMinutes: mins, reason, leaveDays: 0.5, half } };
   }
 

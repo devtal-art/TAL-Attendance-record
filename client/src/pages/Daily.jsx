@@ -5,8 +5,9 @@ import { GroupFilters, PageHead, Stepper } from '../components/Bits.jsx';
 import { useConfig } from '../config.jsx';
 import { STATUS, STATUS_KEYS, addDays, fmtMinutes, fmtNum, matchesGroup, prettyDate, todayISO } from '../utils.js';
 
-const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '', half: '', relaxHours: '', relaxMinutes: '' };
+const EMPTY = { status: '', hours: '', minutes: '', reason: '', shortLeaveHours: '', half: '', relaxToo: false, relaxHours: '', relaxMinutes: '' };
 const RELAXATION = 'relaxation'; // the leave whose time (management's relaxation) can be added to the worked time
+// relaxToo = "Relaxation too": another leave taken with Present that also has relaxation time.
 
 const hasTime = (status) => status === 'present' || status === 'p_available';
 
@@ -18,13 +19,14 @@ const toDraft = (rec) => rec
       reason: rec.reason || '',
       shortLeaveHours: rec.shortLeaveHours ? String(rec.shortLeaveHours) : '',
       half: rec.half || '',
+      relaxToo: !!rec.relaxationMinutes && rec.reason !== RELAXATION,
       relaxHours: rec.relaxationMinutes ? String(Math.floor(rec.relaxationMinutes / 60)) : '',
       relaxMinutes: rec.relaxationMinutes ? String(rec.relaxationMinutes % 60) : '',
     }
   : EMPTY;
 
 const minutesOf = (d) => (Number(d.hours) || 0) * 60 + (Number(d.minutes) || 0);
-const relaxOf = (d) => (d.reason === RELAXATION ? (Number(d.relaxHours) || 0) * 60 + (Number(d.relaxMinutes) || 0) : 0);
+const relaxOf = (d) => (d.reason === RELAXATION || d.relaxToo ? (Number(d.relaxHours) || 0) * 60 + (Number(d.relaxMinutes) || 0) : 0);
 
 // Which reasons the dropdown offers, and whether it is enabled, for the current status/time.
 function reasonOptions(d, cfg, weekOff) {
@@ -42,7 +44,8 @@ function normalize(d, cfg, weekOff) {
   const options = reasonOptions(next, cfg, weekOff);
   if (!options || !options.includes(next.reason)) next.reason = '';
   if (next.reason !== cfg.shortLeaveKey) next.shortLeaveHours = '';
-  if (next.reason !== RELAXATION) { next.relaxHours = ''; next.relaxMinutes = ''; }
+  if (next.status !== 'present' || !next.reason || next.reason === RELAXATION) next.relaxToo = false; // only another leave taken with Present
+  if (next.reason !== RELAXATION && !next.relaxToo) { next.relaxHours = ''; next.relaxMinutes = ''; }
   if (next.status !== 'present' || !next.reason) next.half = ''; // only a leave taken with Present has a half
   return next;
 }
@@ -75,6 +78,7 @@ export function Row({ item, date, onSaved }) {
   const overtime = d.status === 'present' ? (isWeekOff ? minutesOf(d) : noPolicy ? 0 : Math.max(0, minutesOf(d) - cfg.fullDayMinutes)) : 0;
 
   const save = async () => {
+    if (d.relaxToo && relaxOf(d) <= 0) { setError('Enter the relaxation time, or untick "Relaxation too".'); return; }
     setBusy(true);
     setError('');
     try {
@@ -134,8 +138,16 @@ export function Row({ item, date, onSaved }) {
                 {cfg.shortLeaveHours.map((h) => <option key={h} value={h} disabled={h > leftFor(cfg.shortLeaveKey)}>{h} hour{h > 1 ? 's' : ''}</option>)}
               </select>
             )}
-            {d.status === 'present' && d.reason === RELAXATION && (
-              <div className="time-cell" title="Time management relaxed. Worked time + relaxation reaching a full day counts as a full day.">
+            {d.status === 'present' && d.reason && d.reason !== RELAXATION && (
+              <label className="check-inline" title="The employee also got relaxation time (time management relaxed) on this day.">
+                <input type="checkbox" checked={d.relaxToo} onChange={(e) => change({ relaxToo: e.target.checked })} />
+                Relaxation too
+              </label>
+            )}
+            {d.status === 'present' && (d.reason === RELAXATION || d.relaxToo) && (
+              <div className="time-cell" title={d.relaxToo
+                ? 'Time management relaxed. It counts toward the time this leave needs.'
+                : 'Time management relaxed. Worked time + relaxation reaching a full day counts as a full day.'}>
                 <input type="number" min="0" max="8" placeholder="hh" value={d.relaxHours} onChange={(e) => change({ relaxHours: e.target.value })} />
                 <span>h</span>
                 <input type="number" min="0" max="59" placeholder="mm" value={d.relaxMinutes} onChange={(e) => change({ relaxMinutes: e.target.value })} />

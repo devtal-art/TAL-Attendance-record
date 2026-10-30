@@ -11,7 +11,7 @@ export const LEGEND = [
   ['absent', 'A', 'Absent'],
   ['wo', 'WO', 'Week Off'],
   ['holiday', 'H', 'Holiday'],
-  ['present relaxed', 'P', 'Relaxation (dark border)'],
+  ['present relaxed', 'P', 'Relaxation / relaxation too (dark border)'],
 ];
 
 const RELAXATION = 'relaxation'; // leave key of management's relaxation
@@ -35,6 +35,8 @@ export function dayTag(r, o, cfg) {
   const tip = r
     ? [STATUS[r.status].label, r.reason && cfg.reasonLabel(r.reason), r.shortLeaveHours && `${r.shortLeaveHours}h`, r.half && (r.half === 'first' ? 'First half' : 'Second half'), r.relaxationMinutes && `${r.relaxationMinutes}m relaxed`, o && `(${o.name})`].filter(Boolean).join(' · ')
     : o ? o.name : '';
-  const cls = ['tag', kind, r?.reason === RELAXATION && 'relaxed', r && o && 'on-off'].filter(Boolean).join(' ');
+  // Relaxation as the reason, or another leave with "Relaxation too" (it has relaxation time).
+  const relaxed = r && (r.reason === RELAXATION || r.relaxationMinutes > 0);
+  const cls = ['tag', kind, relaxed && 'relaxed', r && o && 'on-off'].filter(Boolean).join(' ');
   return { kind, code, tip, cls };
 }
